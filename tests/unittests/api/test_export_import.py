@@ -18,7 +18,6 @@ from tests.unittests.auth_helper import register
 from tests.unittests.setup_database import Setup
 from tests.unittests.utils import OpenEventTestCase
 
-
 class ImportExportBase(OpenEventTestCase):
     """
     Helper functions to test import/export
