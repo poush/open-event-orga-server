@@ -17,6 +17,7 @@ from tests.unittests.api.utils import create_event, get_path, create_services, \
 from tests.unittests.auth_helper import register
 from tests.unittests.setup_database import Setup
 from tests.unittests.utils import OpenEventTestCase
+from pprint import pprint
 
 class ImportExportBase(OpenEventTestCase):
     """
@@ -58,6 +59,7 @@ class ImportExportBase(OpenEventTestCase):
             if 'SUCCESS' in resp.data:
                 self.assertIn('download_url', resp.data)
                 dl = json.loads(resp.data)['result']['download_url']
+                print(dl)
                 break
             if resp.status_code != 200:
                 self.assertTrue(False, 'Export fail')
@@ -65,6 +67,7 @@ class ImportExportBase(OpenEventTestCase):
         # get event
         resp = self.app.get(dl)
         self.assertEqual(resp.status_code, 200)
+        pprint (vars(resp))
         return resp
 
     def _create_set(self, event_id=1, config=None):
@@ -99,6 +102,7 @@ class TestEventExport(ImportExportBase):
 
     def test_export_success(self):
         resp = self._do_successful_export(1)
+        print(resp.headers)
         self.assertIn('event1.zip', resp.headers['Content-Disposition'])
         size = len(resp.data)
         with app.test_request_context():
