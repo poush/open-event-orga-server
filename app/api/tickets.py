@@ -37,7 +37,7 @@ class TicketSchema(Schema):
 class AllTicketList(ResourceList):
 
     def query(self, view_kwargs):
-        query_ = self.session.query(Ticket)
+        query_ = self.session.query(Ticket).filter_by(deleted_at=None)
         if view_kwargs.get('id') is not None:
             query_ = query_.join(Event).filter(Event.id == view_kwargs['id'])
         return query_
@@ -58,6 +58,7 @@ class AllTicketList(ResourceList):
 
 
 class TicketRelationship(ResourceRelationship):
+
     decorators = (jwt_required, )
     schema = TicketSchema
     data_layer = {'session': db.session,
@@ -65,6 +66,15 @@ class TicketRelationship(ResourceRelationship):
 
 
 class TicketDetail(ResourceDetail):
+ 
+    def is_deleted(self, obj, view_kwargs):
+        """
+        Function to check if the current object is soft-deleted
+        :param obj: current object from get_object
+        :param view_kwargs:
+        """
+        if obj.deleted_at is not None and not request.args.get('permanent'):
+            raise ObjectNotFound({'parameter': 'id'}, "Ticket: {} not found".format(view_kwargs['id']))
 
     def delete(self, *args, **kwargs):
         """
@@ -73,8 +83,15 @@ class TicketDetail(ResourceDetail):
         :param kwargs:
         :return:
         """
+
         obj = self._data_layer.get_object(kwargs)
-        obj.deleted_at = datetime.now()
+
+        if request.args.get('permanent'):
+            self._data_layer.delete_object(obj, kwargs)
+        else:
+            data = {'deleted_at': datetime.now()}
+            self._data_layer.update_object(obj, data, kwargs)
+
         return {'meta': {'message': 'Object successfully deleted'}}
 
     decorators = (jwt_required, )

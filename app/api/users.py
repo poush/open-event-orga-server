@@ -1,6 +1,8 @@
 from datetime import datetime
+from flask import request
 from app.api.helpers.jwt import jwt_required
 from flask_rest_jsonapi import ResourceDetail, ResourceList
+from flask_rest_jsonapi.exceptions import ObjectNotFound
 from marshmallow_jsonapi.flask import Schema, Relationship
 from marshmallow_jsonapi import fields
 from app.models import db
@@ -40,13 +42,33 @@ class UserSchema(Schema):
 
 
 class UserList(ResourceList):
+
+    def query(self, view_kwargs):
+        """
+        Function to add filter for deleted records to
+        the query
+        """
+        query_ = self.session.query(User).filter_by(deleted_at=None)
+        return query_
+
     decorators = (jwt_required, )
     schema = UserSchema
     data_layer = {'session': db.session,
-                  'model': User}
+                  'model': User,
+                  'methods':{'query': query}}
 
 
 class UserDetail(ResourceDetail):
+
+    def is_deleted(self, obj, view_kwargs):
+        """
+        Function to check if the current object is soft-deleted
+        :param obj: current object from get_object
+        :param view_kwargs:
+        """
+        if obj.deleted_at is not None and not request.args.get('permanent'):
+            raise ObjectNotFound({'parameter': 'id'}, "User: {} not found".format(view_kwargs['id']))
+
     def delete(self, *args, **kwargs):
         """
         Function for soft-delete
@@ -55,12 +77,17 @@ class UserDetail(ResourceDetail):
         :return:
         """
         obj = self._data_layer.get_object(kwargs)
-        obj.deleted_at = datetime.now()
+        if request.args.get('permanent'):
+            self._data_layer.delete_object(obj, kwargs)
+        else:
+            data = {'deleted_at': datetime.now()}
+            self._data_layer.update_object(obj, data, kwargs)
+
         return {'meta': {'message': 'Object successfully deleted'}}
 
     decorators = (jwt_required, )
     schema = UserSchema
     data_layer = {'session': db.session,
-                  'model': User}
-
-
+                  'model': User,
+                  'methods': {'after_get_object': is_deleted}}
+    delete_schema_kwargs = {'test': 'test'}
